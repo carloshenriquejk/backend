@@ -24,15 +24,19 @@ model Product {
   id          String   @id @default(uuid())
   name        String
   description String?
+  category    String
   price       Decimal  @db.Decimal(10, 2)
   stock       Int      @default(0)
   imageUrl    String?  @map("image_url")
+  imageKey    String?  @map("image_key")
   active      Boolean  @default(true)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   userId      String   @map("user_id")
   user        User     @relation(fields: [userId], references: [id])
 
+  @@index([category])
+  @@index([userId])
   @@map("products")
 }
 

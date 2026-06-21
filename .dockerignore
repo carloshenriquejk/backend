@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+prisma/migrations/dev.db
+uploads/
+README.md
+*.md
+.vscode/
+.idea/
