@@ -15,6 +15,16 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { imageUploadOptions } from '../common/multer/multer.config.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
@@ -22,20 +32,33 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
-interface ProductQuery {
-  category?: string;
-  page?: string;
-  limit?: string;
-  search?: string;
-}
-
+@ApiTags('Products')
+@ApiBearerAuth('JWT')
 @UseGuards(JwtAuthGuard)
 @Controller('products')
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor('image'))
+  @UseInterceptors(FileInterceptor('image', imageUploadOptions))
+  @ApiOperation({ summary: 'Criar produto (aceita imagem via multipart)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['name', 'category', 'price'],
+      properties: {
+        name: { type: 'string', example: 'Tênis Nike Air Max' },
+        description: { type: 'string', example: 'Tênis esportivo' },
+        category: { type: 'string', example: 'calcados' },
+        price: { type: 'number', example: 299.99 },
+        stock: { type: 'integer', example: 50 },
+        active: { type: 'boolean', example: true },
+        image: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Produto criado' })
   create(
     @Body() dto: CreateProductDto,
     @CurrentUser() user: CurrentUserPayload,
@@ -47,7 +70,16 @@ export class ProductsController {
   }
 
   @Get()
-  findAll(@Query() query: ProductQuery, @CurrentUser() user: CurrentUserPayload) {
+  @ApiOperation({ summary: 'Listar produtos com paginação e filtros' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Lista paginada de produtos' })
+  findAll(
+    @Query() query: { category?: string; page?: string; limit?: string; search?: string },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     return this.productsService.findAll({
       userId: user.id,
       category: query.category,
@@ -58,11 +90,17 @@ export class ProductsController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Buscar produto por ID' })
+  @ApiResponse({ status: 200, description: 'Produto encontrado' })
+  @ApiResponse({ status: 404, description: 'Produto não encontrado' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.productsService.findOne(id, user.id);
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Atualizar produto' })
+  @ApiResponse({ status: 200, description: 'Produto atualizado' })
+  @ApiResponse({ status: 404, description: 'Produto não encontrado' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
@@ -73,6 +111,9 @@ export class ProductsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remover produto' })
+  @ApiResponse({ status: 204, description: 'Produto removido' })
+  @ApiResponse({ status: 404, description: 'Produto não encontrado' })
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.productsService.remove(id, user.id);
   }
