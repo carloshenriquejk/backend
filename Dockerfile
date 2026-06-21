@@ -1,6 +1,7 @@
 # Stage 1: builder
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV CI=true
 
 COPY package*.json ./
 RUN npm ci
