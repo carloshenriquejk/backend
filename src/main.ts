@@ -16,13 +16,26 @@ async function bootstrap() {
   ensureUploadsDir();
   app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
 
   app.enableCors({
     origin: process.env.CORS_ORIGIN ?? '*',
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Backend API')
+    .setDescription('API REST com NestJS, PostgreSQL, BullMQ e Redis')
+    .setVersion('1.0')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document);
 
   app.setGlobalPrefix('api/v1');
 
@@ -37,19 +50,10 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Backend API')
-    .setDescription('API REST com NestJS, PostgreSQL, BullMQ e Redis')
-    .setVersion('1.0')
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/v1/docs', app, document);
-
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
 
   Logger.log(`Application running on http://localhost:${port}/api/v1`, 'Bootstrap');
-  Logger.log(`Swagger docs at http://localhost:${port}/api/v1/docs`, 'Bootstrap');
+  Logger.log(`Swagger docs at http://localhost:${port}/docs`, 'Bootstrap');
 }
 void bootstrap();
