@@ -30,3 +30,5 @@ Thumbs.db
 
 # Uploads
 uploads/
+
+/generated/prisma
