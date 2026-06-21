@@ -1,7 +1,9 @@
 # Stage 1: builder
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 ENV CI=true
+
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci
@@ -11,13 +13,13 @@ RUN npx prisma generate
 RUN npm run build
 
 # Stage 2: production
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV CI=true
 
-RUN apk add --no-cache openssl
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci --omit=dev
