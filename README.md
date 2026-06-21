@@ -1,143 +1,261 @@
 # Backend API
 
-REST API construída com NestJS seguindo arquitetura limpa e boas práticas de produção.
+API REST production-ready construída com NestJS, PostgreSQL, BullMQ e Redis, seguindo Clean Architecture com separação em camadas (controller → service → repository).
+
+## Stack
+
+| Tecnologia | Uso |
+|------------|-----|
+| NestJS 11 | Framework HTTP |
+| PostgreSQL | Banco de dados relacional |
+| Prisma ORM 5 | Acesso ao banco + migrations |
+| BullMQ + Redis | Filas de processamento assíncrono |
+| Redis (cache-manager) | Cache de listagens |
+| JWT + Passport | Autenticação |
+| Multer | Upload de imagens |
+| Swagger/OpenAPI | Documentação interativa |
+| Docker + Docker Compose | Containerização |
+| ESLint + Prettier + Husky | Qualidade de código |
+| Jest | Testes unitários |
 
 ## Arquitetura
 
 ```
 src/
-  auth/           # JWT + Passport (register, login, guards, strategies)
-  products/       # CRUD com repository pattern, cache e upload de imagem
-  queues/         # BullMQ workers (processamento assíncrono)
-  common/         # Filtros, interceptors e decorators reutilizáveis
-  prisma/         # PrismaService global
-  main.ts         # Servidor HTTP
-  worker.ts       # Entry point exclusivo dos workers (sem HTTP)
+├── auth/               # Autenticação JWT + Local strategies
+│   ├── dto/            # RegisterDto, LoginDto
+│   ├── guards/         # JwtAuthGuard, LocalAuthGuard
+│   └── strategies/     # jwt.strategy, local.strategy
+├── products/           # CRUD de produtos
+│   ├── dto/            # CreateProductDto, UpdateProductDto, PaginateProductsDto
+│   └── repositories/   # ProductsRepository (Repository Pattern)
+├── queues/             # BullMQ
+│   └── processors/     # ProductProcessor (otimização, indexação, notificação)
+├── prisma/             # PrismaService global
+├── common/             # Utilitários reutilizáveis
+│   ├── decorators/     # @CurrentUser()
+│   ├── filters/        # HttpExceptionFilter global
+│   ├── interceptors/   # LoggingInterceptor global
+│   └── multer/         # Configuração de upload
+├── main.ts             # Entry point da API HTTP
+└── worker.ts           # Entry point do worker BullMQ (processo separado)
 ```
 
-**Stack:** NestJS · PostgreSQL · Prisma ORM · BullMQ · Redis · JWT · Docker
+## Fluxo de criação de produto
+
+```
+POST /products
+      │
+      ▼
+ProductsService.create()
+      │
+      ├─ Salva no PostgreSQL via ProductsRepository
+      ├─ Enfileira job no BullMQ (product.created)
+      └─ Invalida cache Redis do usuário
+             │
+             ▼ (worker.ts — processo independente)
+       ProductProcessor
+             ├─ optimizeImage  (2s)
+             ├─ indexProduct   (500ms)
+             └─ sendNotification (200ms)
+```
 
 ## Pré-requisitos
 
-- Node.js 22+
+- Node.js 20+
 - Docker Desktop
-- npm 10+
 
-## Configuração
+## Setup local
+
+### 1. Clone e instale
+
+```bash
+git clone https://github.com/carloshenriquejk/backend.git
+cd backend
+npm install
+```
+
+### 2. Configure variáveis de ambiente
 
 ```bash
 cp .env.example .env
 ```
 
-Edite `.env` conforme necessário (os valores padrão funcionam com Docker).
+Os valores padrão já funcionam com o Docker Compose:
 
-## Subir com Docker
-
-```bash
-# Sobe PostgreSQL e Redis
-docker compose up -d postgres redis
-
-# Verifica se estão saudáveis
-docker compose ps
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/backend_db
+JWT_SECRET=sua-chave-secreta-longa-e-aleatoria
+JWT_EXPIRES_IN=7d
+REDIS_HOST=localhost
+REDIS_PORT=6379
+PORT=3000
+NODE_ENV=development
+CORS_ORIGIN=*
 ```
 
-## Migrations e Seed
+### 3. Suba PostgreSQL e Redis
 
 ```bash
-# Criar/aplicar migrations
-npx prisma migrate dev
+docker compose up -d
+docker compose ps   # confirme que estão "healthy"
+```
 
-# Popular banco com dados de teste
+### 4. Execute as migrations
+
+```bash
+npm run prisma:migrate
+```
+
+### 5. Popule o banco
+
+```bash
 npm run prisma:seed
 ```
 
-## Desenvolvimento
+Cria:
+- Usuário admin: `test@example.com` / `Test@1234`
+- 3 produtos de exemplo
+
+### 6. Inicie a API
 
 ```bash
-npm install
-npm run start:dev       # API em modo watch — http://localhost:3000
+npm run start:dev       # desenvolvimento (hot reload)
 ```
 
-## Workers (BullMQ)
+### 7. Inicie o worker (terminal separado)
 
 ```bash
-# Em outro terminal
 npm run start:worker
 ```
 
-O worker processa jobs da fila `product-processing` (otimização de imagem, indexação, notificações).
+API disponível em `http://localhost:3000/api/v1`
+Swagger em `http://localhost:3000/docs`
 
-## Testes
+## Como rodar migrations em produção
 
 ```bash
-npm test              # Todos os testes unitários
-npm run test:cov      # Com relatório de cobertura
+DATABASE_URL="postgresql://user:pass@host:port/db" npx prisma migrate deploy
+DATABASE_URL="postgresql://user:pass@host:port/db" npm run prisma:seed
 ```
 
-## Scripts disponíveis
+## Como subir workers e filas
 
-| Script | Descrição |
-|--------|-----------|
-| `npm run start:dev` | API em modo desenvolvimento (hot reload) |
-| `npm run start:prod` | API em produção (requer build) |
-| `npm run start:worker` | Worker BullMQ |
-| `npm run build` | Compila TypeScript |
-| `npm test` | Testes unitários |
-| `npm run test:cov` | Testes com cobertura |
-| `npm run lint` | ESLint + fix automático |
-| `npm run prisma:migrate` | Aplica migrations |
-| `npm run prisma:seed` | Popula o banco com dados de teste |
+O worker é um processo Node.js separado que consome a fila `product-processing` do Redis. Em produção (Railway), é um serviço independente configurado em `railway.worker.toml`:
 
-## Endpoints da API
+```bash
+node dist/worker.js
+```
+
+Variáveis necessárias: `DATABASE_URL`, `REDIS_URL` (ou `REDIS_HOST`/`REDIS_PORT`).
+
+## Como executar testes
+
+```bash
+npm test              # unitários
+npm run test:cov      # com relatório de cobertura
+```
+
+Cobertura:
+- `AuthService`: 10 casos (registro, login, validação, erros)
+- `ProductsService`: 8 casos (CRUD, cache, fila)
+
+## Endpoints
 
 Base URL: `http://localhost:3000/api/v1`
 
-### Auth
+### Auth (público)
 
-| Método | Rota | Auth | Body |
-|--------|------|------|------|
-| POST | `/auth/register` | — | `{ name, email, password }` |
-| POST | `/auth/login` | — | `{ email, password }` |
+| Método | Rota | Body |
+|--------|------|------|
+| POST | `/auth/register` | `{ name, email, password }` |
+| POST | `/auth/login` | `{ email, password }` |
 
-### Products
+### Products (requer JWT)
 
-| Método | Rota | Auth | Body / Query |
-|--------|------|------|-------------|
-| POST | `/products` | JWT | `{ name, category, price, description?, stock? }` + `image` (multipart) |
-| GET | `/products` | JWT | `?category=&page=&limit=&search=` |
-| GET | `/products/:id` | JWT | — |
-| PATCH | `/products/:id` | JWT | campos parciais do produto |
-| DELETE | `/products/:id` | JWT | — |
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/products` | Criar produto (multipart/form-data — aceita campo `image`) |
+| GET | `/products` | Listar com paginação (`?page=&limit=&category=&search=`) |
+| GET | `/products/:id` | Buscar por ID |
+| PATCH | `/products/:id` | Atualizar parcialmente |
+| DELETE | `/products/:id` | Remover |
 
-> Todos os endpoints de produtos exigem header `Authorization: Bearer <token>`.
+### Health
 
-## Credenciais de teste (após seed)
+| Método | Rota |
+|--------|------|
+| GET | `/health` |
+
+> Documentação interativa completa em `/docs` (Swagger UI).
+
+## Credenciais de teste
 
 ```
 Email:    test@example.com
-Password: Test@1234
+Senha:    Test@1234
+Role:     ADMIN
 ```
 
-Exemplo de fluxo:
+Exemplo de uso via curl:
 
 ```bash
-# Login
+# 1. Login e captura do token
 TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"Test@1234"}' | jq -r '.access_token')
 
-# Listar produtos
-curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/products | jq .
+# 2. Listar produtos
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3000/api/v1/products?page=1&limit=10" | jq .
+
+# 3. Criar produto
+curl -X POST http://localhost:3000/api/v1/products \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "name=Produto Teste" \
+  -F "category=eletronicos" \
+  -F "price=99.90" \
+  -F "stock=10"
 ```
+
+## Deploy (Railway)
+
+Configurado via `railway.toml` (API) e `railway.worker.toml` (worker).
+
+### Variáveis do serviço API
+
+| Variável | Valor |
+|----------|-------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
+| `JWT_SECRET` | string aleatória longa |
+| `JWT_EXPIRES_IN` | `7d` |
+| `NODE_ENV` | `production` |
+| `CORS_ORIGIN` | `*` |
+
+## Scripts
+
+| Script | Descrição |
+|--------|-----------|
+| `npm run start:dev` | API em modo desenvolvimento |
+| `npm run start:prod` | API em produção |
+| `npm run start:worker` | Worker BullMQ |
+| `npm run build` | Compila TypeScript |
+| `npm test` | Testes unitários |
+| `npm run test:cov` | Testes com cobertura |
+| `npm run lint` | ESLint com auto-fix |
+| `npm run prisma:migrate` | Cria e aplica migrations |
+| `npm run prisma:seed` | Popula o banco |
 
 ## Decisões arquiteturais
 
 | Decisão | Motivo |
 |---------|--------|
-| **Repository Pattern** | Desacopla a lógica de negócio do Prisma — facilita testes unitários com mocks |
-| **PrismaModule `@Global()`** | Evita reimportar em cada módulo sem perder controle de injeção |
-| **BullMQ separado em `worker.ts`** | Workers podem escalar independentemente da API HTTP |
-| **Cache por chave `userId+filtros`** | Garante isolamento entre usuários e invalidação precisa |
-| **`HttpExceptionFilter` global** | Resposta padronizada em todos os erros, com log de 5xx |
-| **Prisma 5 (não v7)** | Prisma 7 usa ESM puro, incompatível com o setup CommonJS do NestJS |
-| **`@CurrentUser()` decorator** | Elimina o acoplamento direto ao `@Request()` nos controllers |
+| **Repository Pattern** | Desacopla negócio do Prisma — facilita mocks nos testes |
+| **Worker como processo separado** | Falha na fila não derruba a API; escala independentemente |
+| **Cache com chave `userId+filtros`** | Isolamento entre usuários e invalidação precisa |
+| **Produtos escopados por usuário** | Modelo marketplace — cada usuário gerencia seus próprios produtos |
+| **HttpExceptionFilter global** | Resposta padronizada em todos os erros, com stack trace em 5xx |
+| **Prisma 5 (não v7)** | Prisma 7 usa ESM puro, incompatível com o CommonJS do NestJS |
+| **`@CurrentUser()` decorator** | Elimina acoplamento direto ao `@Request()` nos controllers |
+| **BullMQ retry exponencial** | Jobs falhos são reprocessados até 3× com backoff |
