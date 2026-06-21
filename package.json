@@ -21,7 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "prepare": "husky"
+    "prepare": "[ -n \"$CI\" ] || husky"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
