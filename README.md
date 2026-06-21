@@ -1,98 +1,143 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API construída com NestJS seguindo arquitetura limpa e boas práticas de produção.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Arquitetura
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```
+src/
+  auth/           # JWT + Passport (register, login, guards, strategies)
+  products/       # CRUD com repository pattern, cache e upload de imagem
+  queues/         # BullMQ workers (processamento assíncrono)
+  common/         # Filtros, interceptors e decorators reutilizáveis
+  prisma/         # PrismaService global
+  main.ts         # Servidor HTTP
+  worker.ts       # Entry point exclusivo dos workers (sem HTTP)
 ```
 
-## Compile and run the project
+**Stack:** NestJS · PostgreSQL · Prisma ORM · BullMQ · Redis · JWT · Docker
+
+## Pré-requisitos
+
+- Node.js 22+
+- Docker Desktop
+- npm 10+
+
+## Configuração
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+Edite `.env` conforme necessário (os valores padrão funcionam com Docker).
+
+## Subir com Docker
 
 ```bash
-# unit tests
-$ npm run test
+# Sobe PostgreSQL e Redis
+docker compose up -d postgres redis
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# Verifica se estão saudáveis
+docker compose ps
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Migrations e Seed
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Criar/aplicar migrations
+npx prisma migrate dev
+
+# Popular banco com dados de teste
+npm run prisma:seed
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Desenvolvimento
 
-## Resources
+```bash
+npm install
+npm run start:dev       # API em modo watch — http://localhost:3000
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+## Workers (BullMQ)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+# Em outro terminal
+npm run start:worker
+```
 
-## Support
+O worker processa jobs da fila `product-processing` (otimização de imagem, indexação, notificações).
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Testes
 
-## Stay in touch
+```bash
+npm test              # Todos os testes unitários
+npm run test:cov      # Com relatório de cobertura
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Scripts disponíveis
 
-## License
+| Script | Descrição |
+|--------|-----------|
+| `npm run start:dev` | API em modo desenvolvimento (hot reload) |
+| `npm run start:prod` | API em produção (requer build) |
+| `npm run start:worker` | Worker BullMQ |
+| `npm run build` | Compila TypeScript |
+| `npm test` | Testes unitários |
+| `npm run test:cov` | Testes com cobertura |
+| `npm run lint` | ESLint + fix automático |
+| `npm run prisma:migrate` | Aplica migrations |
+| `npm run prisma:seed` | Popula o banco com dados de teste |
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Endpoints da API
+
+Base URL: `http://localhost:3000/api/v1`
+
+### Auth
+
+| Método | Rota | Auth | Body |
+|--------|------|------|------|
+| POST | `/auth/register` | — | `{ name, email, password }` |
+| POST | `/auth/login` | — | `{ email, password }` |
+
+### Products
+
+| Método | Rota | Auth | Body / Query |
+|--------|------|------|-------------|
+| POST | `/products` | JWT | `{ name, category, price, description?, stock? }` + `image` (multipart) |
+| GET | `/products` | JWT | `?category=&page=&limit=&search=` |
+| GET | `/products/:id` | JWT | — |
+| PATCH | `/products/:id` | JWT | campos parciais do produto |
+| DELETE | `/products/:id` | JWT | — |
+
+> Todos os endpoints de produtos exigem header `Authorization: Bearer <token>`.
+
+## Credenciais de teste (após seed)
+
+```
+Email:    test@example.com
+Password: Test@1234
+```
+
+Exemplo de fluxo:
+
+```bash
+# Login
+TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"Test@1234"}' | jq -r '.access_token')
+
+# Listar produtos
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/products | jq .
+```
+
+## Decisões arquiteturais
+
+| Decisão | Motivo |
+|---------|--------|
+| **Repository Pattern** | Desacopla a lógica de negócio do Prisma — facilita testes unitários com mocks |
+| **PrismaModule `@Global()`** | Evita reimportar em cada módulo sem perder controle de injeção |
+| **BullMQ separado em `worker.ts`** | Workers podem escalar independentemente da API HTTP |
+| **Cache por chave `userId+filtros`** | Garante isolamento entre usuários e invalidação precisa |
+| **`HttpExceptionFilter` global** | Resposta padronizada em todos os erros, com log de 5xx |
+| **Prisma 5 (não v7)** | Prisma 7 usa ESM puro, incompatível com o setup CommonJS do NestJS |
+| **`@CurrentUser()` decorator** | Elimina o acoplamento direto ao `@Request()` nos controllers |
