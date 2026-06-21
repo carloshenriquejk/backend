@@ -1,9 +1,9 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { NotFoundException } from '@nestjs/common';
 import { getQueueToken } from '@nestjs/bullmq';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ProductsRepository } from './repositories/products.repository';
-import { ProductsService } from './products.service';
+import { ProductsRepository } from '../../src/products/repositories/products.repository';
+import { ProductsService } from '../../src/products/products.service';
 
 const mockProduct = {
   id: 'prod-uuid-1',
@@ -101,7 +101,12 @@ describe('ProductsService', () => {
 
     it('should query repository and set cache on miss', async () => {
       mockCache.get.mockResolvedValue(null);
-      mockRepository.findAll.mockResolvedValue({ data: [mockProduct], total: 1, page: 1, limit: 10 });
+      mockRepository.findAll.mockResolvedValue({
+        data: [mockProduct],
+        total: 1,
+        page: 1,
+        limit: 10,
+      });
 
       const result = await service.findAll(params);
 

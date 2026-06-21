@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
-import { PrismaService } from '../prisma/prisma.service';
-import { AuthService } from './auth.service';
+import { AuthService } from '../../src/auth/auth.service';
+import { PrismaService } from '../../src/prisma/prisma.service';
 
 const mockUser = {
   id: 'uuid-123',
@@ -84,14 +84,21 @@ describe('AuthService', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
       let capturedData: Record<string, unknown> = {};
-      (prisma.user.create as jest.Mock).mockImplementation(({ data }: { data: Record<string, unknown> }) => {
-        capturedData = data;
-        return Promise.resolve({ id: mockUser.id, email: mockUser.email, role: 'USER', name: 'Carlos', createdAt: new Date() });
-      });
+      (prisma.user.create as jest.Mock).mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) => {
+          capturedData = data;
+          return Promise.resolve({
+            id: mockUser.id,
+            email: mockUser.email,
+            role: 'USER',
+            name: 'Carlos',
+            createdAt: new Date(),
+          });
+        },
+      );
 
       await service.register({ name: 'Carlos', email: 'novo@teste.com', password: '123456' });
 
-      // Password must be hashed, not stored as plain text
       expect(capturedData.password).toBeDefined();
       expect(capturedData.password).not.toBe('123456');
       expect((capturedData.password as string).startsWith('$2')).toBe(true);
@@ -149,7 +156,6 @@ describe('AuthService', () => {
       const user = await service.validateUser('wrong@email.com', 'wrong');
       expect(user).toBeNull();
 
-      // Simula o que LocalStrategy faz
       expect(() => {
         if (!user) throw new UnauthorizedException('Invalid credentials');
       }).toThrow(UnauthorizedException);
