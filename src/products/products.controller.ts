@@ -98,15 +98,20 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Atualizar produto' })
+  @UseInterceptors(FileInterceptor('image', imageUploadOptions))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Atualizar produto (aceita imagem via multipart)' })
   @ApiResponse({ status: 200, description: 'Produto atualizado' })
   @ApiResponse({ status: 404, description: 'Produto não encontrado' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
     @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.productsService.update(id, dto, user.id);
+    const imageUrl = file ? `/uploads/${file.filename}` : undefined;
+    const imageKey = file ? file.filename : undefined;
+    return this.productsService.update(id, dto, user.id, imageUrl, imageKey);
   }
 
   @Delete(':id')

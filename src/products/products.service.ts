@@ -9,6 +9,8 @@ import { FindAllParams, ProductsRepository } from './repositories/products.repos
 
 @Injectable()
 export class ProductsService {
+  private readonly userCacheKeys = new Map<string, Set<string>>();
+
   constructor(
     private repository: ProductsRepository,
     @InjectQueue('product-processing') private productQueue: Queue,
@@ -55,9 +57,19 @@ export class ProductsService {
     return product;
   }
 
-  async update(id: string, dto: UpdateProductDto, userId: string) {
+  async update(
+    id: string,
+    dto: UpdateProductDto,
+    userId: string,
+    imageUrl?: string,
+    imageKey?: string,
+  ) {
     await this.findOne(id, userId);
-    const product = await this.repository.update(id, userId, dto);
+    const product = await this.repository.update(id, userId, {
+      ...dto,
+      ...(imageUrl !== undefined && { imageUrl }),
+      ...(imageKey !== undefined && { imageKey }),
+    });
     await this.invalidateCache(userId);
     return product;
   }
@@ -69,10 +81,19 @@ export class ProductsService {
   }
 
   private buildCacheKey(params: FindAllParams): string {
-    return `products:${params.userId}:${params.category ?? ''}:${params.page ?? 1}:${params.limit ?? 10}:${params.search ?? ''}`;
+    const key = `products:${params.userId}:${params.category ?? ''}:${params.page ?? 1}:${params.limit ?? 10}:${params.search ?? ''}`;
+    if (!this.userCacheKeys.has(params.userId)) {
+      this.userCacheKeys.set(params.userId, new Set());
+    }
+    this.userCacheKeys.get(params.userId)!.add(key);
+    return key;
   }
 
   private async invalidateCache(userId: string): Promise<void> {
-    await this.cacheManager.del(`products:${userId}`);
+    const keys = this.userCacheKeys.get(userId);
+    if (keys) {
+      await Promise.all([...keys].map((k) => this.cacheManager.del(k)));
+      this.userCacheKeys.delete(userId);
+    }
   }
 }
